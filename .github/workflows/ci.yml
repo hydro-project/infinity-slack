@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  pre_job:
+    runs-on: ubuntu-latest
+    outputs:
+      should_skip: ${{ steps.skip_check.outputs.should_skip }}
+    steps:
+      - id: skip_check
+        uses: fkirc/skip-duplicate-actions@f75f66ce1886f00957d99748a42c724f4330bdcf # v5.3.1
+
+  lint:
+    name: Lint
+    if: ${{ needs.pre_job.outputs.should_skip != 'true' || github.event_name != 'pull_request' }}
+    timeout-minutes: 30
+    needs: pre_job
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - uses: ./.github/actions/use-sccache
+
+      - name: Check formatting
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Check licenses (THIRD-PARTY)
+        run: |
+          cargo install --locked cargo-about --features cli
+          bash scripts/generate-third-party.sh
+          git diff --exit-code THIRD-PARTY || (echo "THIRD-PARTY file is stale. Run 'bash scripts/generate-third-party.sh' and commit." && exit 1)
+
+  test:
+    name: Test (${{ matrix.os }})
+    if: ${{ needs.pre_job.outputs.should_skip != 'true' || github.event_name != 'pull_request' }}
+    timeout-minutes: 30
+    needs: pre_job
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # macOS is kept deliberately: the Hydro sim-test dylib SIGSEGV that the
+        # tokio feature pin in infinity-slack-dataflow guards against only
+        # reproduced there.
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - uses: ./.github/actions/use-sccache
+
+      # Includes the Hydro simulator tests (crates/infinity-slack-dataflow/tests).
+      - name: Run tests
+        run: cargo test --all-targets
+
+      - name: Run doctests
+        run: cargo test --doc
+
+  test-all:
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    name: Test Suite Result (Full Matrix)
+    needs: [test]
+    steps:
+      - run: |
+          result="${{ needs.test.result }}"
+          if [[ $result == "success" || $result == "skipped" ]]; then
+            exit 0
+          else
+            exit 1
+          fi
