@@ -10,7 +10,7 @@ name = "infinity-slack-bot"
 path = "src/main.rs"
 
 [dependencies]
-infinity-protocol = { path = "../infinity-protocol" }
+infinity-protocol = { workspace = true }
 infinity-slack-dataflow = { path = "../infinity-slack-dataflow", features = ["stageleft_macro_entrypoint"] }
 
 # `embedded_runtime` provides `hydro_lang::runtime_support::dfir_rs`, which the

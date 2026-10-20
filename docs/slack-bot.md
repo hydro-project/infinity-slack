@@ -1,8 +1,3 @@
----
-sidebar_position: 7
-title: Slack Bot
----
-
 # Slack Bot
 
 The Infinity Slack Bot connects Infinity Code to a Slack workspace, letting you interact with the agent from any Slack channel or thread. Each Slack thread maps to an Infinity session — start a conversation in a channel and the agent maintains context across replies.
@@ -62,13 +57,10 @@ settings:
   token_rotation_enabled: false
 ```
 
-:::warning Manifests replace, don't merge
-
-Applying a manifest resets any settings not present in the YAML, including ones enabled through the dashboard UI. Before applying, export your app's current manifest from **App Settings → App Manifest** and diff it against this one.
-
-Also note that switching from `assistant_view` to `agent_view` is **irreversible** — once applied, the app cannot go back to the Assistant messaging experience.
-
-:::
+> [!WARNING]
+> **Manifests replace, don't merge.** Applying a manifest resets any settings not present in the YAML, including ones enabled through the dashboard UI. Before applying, export your app's current manifest from **App Settings → App Manifest** and diff it against this one.
+>
+> Also note that switching from `assistant_view` to `agent_view` is **irreversible** — once applied, the app cannot go back to the Assistant messaging experience.
 
 3. Click **Create**.
 
@@ -115,7 +107,7 @@ To find your Slack user ID: click your profile in Slack → **⋮** → **Copy m
 
 ## Running
 
-Start the Infinity daemon first (if not already running), then start the Slack bot:
+Start the Infinity daemon first (if not already running; see [hydro-project/infinity](https://github.com/hydro-project/infinity) to install the `infinity` CLI), then start the Slack bot from a checkout of this repository:
 
 ```bash
 # Start the daemon (if not running; any `infinity` run auto-starts it,

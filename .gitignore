@@ -1,0 +1,10 @@
+target/
+.env
+.env.local
+
+/.jj/
+/.infinity/
+
+._*
+
+/rust-toolchain.toml
