@@ -14,6 +14,17 @@ pub const MODEL_PICKER_ACTION_ID: &str = "model_select";
 /// this is the thread-friendly way to trigger context compaction.
 pub const COMPACT_SHORTCUT_CALLBACK_ID: &str = "compact_session";
 
+/// Callback ID of the "Switch model" message shortcut (declared in the Slack
+/// app manifest under `features.shortcuts`). Slash commands cannot be
+/// invoked inside Slack threads, so per-thread model switching rides the
+/// context ⋮ menu instead.
+pub const SWITCH_MODEL_SHORTCUT_CALLBACK_ID: &str = "switch_model";
+/// Callback ID for the per-thread model picker modal (distinct from
+/// [`MODEL_PICKER_CALLBACK_ID`], which switches the default for new
+/// sessions). The modal reuses [`MODEL_PICKER_BLOCK_ID`] /
+/// [`MODEL_PICKER_ACTION_ID`] for its select element.
+pub const THREAD_MODEL_MODAL_CALLBACK_ID: &str = "thread_model_submit";
+
 /// A normalized event from Slack (message, button click, or slash command)
 /// that flows through the dataflow.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
@@ -55,6 +66,14 @@ pub struct SlackEvent {
     /// `response_url` where validation errors can be reported ephemerally.
     #[serde(default)]
     pub shortcut: Option<String>,
+    /// For per-thread model-picker submissions
+    /// ([`THREAD_MODEL_MODAL_CALLBACK_ID`]): the selected
+    /// `provider_id/model_id`. `channel` and `thread_ts` are restored from
+    /// the view's `private_metadata` and identify the Slack thread whose
+    /// session thread the switch targets (a subagent's dedicated thread
+    /// switches that subagent's agent thread).
+    #[serde(default)]
+    pub thread_model_selection: Option<String>,
 }
 
 /// Serde adapter storing a `serde_json::Value` as its JSON string form.
@@ -226,6 +245,7 @@ mod tests {
             trigger_id: None,
             is_app_home_opened: false,
             shortcut: None,
+            thread_model_selection: None,
         }
     }
 

@@ -367,6 +367,7 @@ mod tests {
                 trigger_id: None,
                 is_app_home_opened: false,
                 shortcut: None,
+                thread_model_selection: None,
             })
             .await
             .expect("send should succeed");
