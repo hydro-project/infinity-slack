@@ -8,6 +8,12 @@ pub const MODEL_PICKER_BLOCK_ID: &str = "model_block";
 /// Action ID of the model-select element in the model-picker modal.
 pub const MODEL_PICKER_ACTION_ID: &str = "model_select";
 
+/// Callback ID of the "Compact session" message shortcut (declared in the
+/// Slack app manifest under `features.shortcuts`). Message shortcuts work
+/// inside threads — unlike slash commands, which Slack rejects there — so
+/// this is the thread-friendly way to trigger context compaction.
+pub const COMPACT_SHORTCUT_CALLBACK_ID: &str = "compact_session";
+
 /// A normalized event from Slack (message, button click, or slash command)
 /// that flows through the dataflow.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
@@ -43,6 +49,12 @@ pub struct SlackEvent {
     /// event with `tab == "messages"`). Used for onboarding, not messaging.
     #[serde(default)]
     pub is_app_home_opened: bool,
+    /// The callback_id of a message shortcut (context-menu `message_action`
+    /// payload), e.g. [`COMPACT_SHORTCUT_CALLBACK_ID`]. `message_ts` carries
+    /// the target message's ts, `thread_ts` the thread it lives in, and
+    /// `response_url` where validation errors can be reported ephemerally.
+    #[serde(default)]
+    pub shortcut: Option<String>,
 }
 
 /// Serde adapter storing a `serde_json::Value` as its JSON string form.
@@ -213,6 +225,7 @@ mod tests {
             response_url: None,
             trigger_id: None,
             is_app_home_opened: false,
+            shortcut: None,
         }
     }
 

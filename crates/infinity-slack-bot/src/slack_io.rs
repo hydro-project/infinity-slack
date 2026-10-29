@@ -59,7 +59,8 @@ struct RawSlackEvent {
 
 #[derive(Deserialize)]
 struct InteractivePayload {
-    /// `block_actions` for button clicks, `view_submission` for modal submits.
+    /// `block_actions` for button clicks, `view_submission` for modal
+    /// submits, `message_action` for message shortcuts (context ⋮ menu).
     #[serde(rename = "type", default)]
     payload_type: String,
     #[serde(default)]
@@ -69,6 +70,16 @@ struct InteractivePayload {
     user: Option<InteractiveUser>,
     /// Present on `view_submission` payloads.
     view: Option<InteractiveView>,
+    /// The shortcut's callback_id (present on `message_action` payloads).
+    #[serde(default)]
+    callback_id: Option<String>,
+    /// Present on `message_action` payloads (and some others).
+    #[serde(default)]
+    trigger_id: Option<String>,
+    /// Present on `message_action` payloads: where ephemeral responses to
+    /// the invoking user can be POSTed.
+    #[serde(default)]
+    response_url: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -1311,6 +1322,7 @@ fn parse_slash_command(payload: serde_json::Value) -> Option<SlackEvent> {
         response_url: Some(p.response_url),
         trigger_id: p.trigger_id,
         is_app_home_opened: false,
+        shortcut: None,
     })
 }
 
@@ -1319,6 +1331,9 @@ fn parse_interactive(payload: serde_json::Value) -> Option<SlackEvent> {
 
     if p.payload_type == "view_submission" {
         return parse_view_submission(p);
+    }
+    if p.payload_type == "message_action" {
+        return parse_message_action(p);
     }
 
     let action = p.actions.first()?;
@@ -1351,6 +1366,39 @@ fn parse_interactive(payload: serde_json::Value) -> Option<SlackEvent> {
         response_url: None,
         trigger_id: None,
         is_app_home_opened: false,
+        shortcut: None,
+    })
+}
+
+/// Parse a `message_action` payload (a message shortcut from the context ⋮
+/// menu, e.g. "Compact session"). `message_ts` carries the target message's
+/// ts and `thread_ts` the thread it belongs to (the message itself when it
+/// is a top-level/thread-parent message).
+fn parse_message_action(p: InteractivePayload) -> Option<SlackEvent> {
+    let callback_id = p.callback_id?;
+    let user = p.user?;
+    let chan = p.channel?;
+    let msg = p.message?;
+    let target_ts = msg.ts?;
+    let thread_ts = msg.thread_ts.unwrap_or_else(|| target_ts.clone());
+
+    Some(SlackEvent {
+        user: user.id,
+        text: String::new(),
+        channel: chan.id,
+        thread_ts,
+        is_button_click: false,
+        button_value: None,
+        action_id: None,
+        message_ts: Some(target_ts),
+        button_text: None,
+        is_bot: false,
+        is_unauthorized: false, // set later by caller
+        slash_command: None,
+        response_url: p.response_url,
+        trigger_id: p.trigger_id,
+        is_app_home_opened: false,
+        shortcut: Some(callback_id),
     })
 }
 
@@ -1394,6 +1442,7 @@ fn parse_view_submission(p: InteractivePayload) -> Option<SlackEvent> {
         response_url: (!view.private_metadata.is_empty()).then_some(view.private_metadata),
         trigger_id: None,
         is_app_home_opened: false,
+        shortcut: None,
     })
 }
 
@@ -1423,6 +1472,7 @@ fn parse_events_api(payload: serde_json::Value) -> Option<SlackEvent> {
             response_url: None,
             trigger_id: None,
             is_app_home_opened: true,
+            shortcut: None,
         });
     }
 
@@ -1456,6 +1506,7 @@ fn parse_events_api(payload: serde_json::Value) -> Option<SlackEvent> {
         response_url: None,
         trigger_id: None,
         is_app_home_opened: false,
+        shortcut: None,
     })
 }
 
@@ -1642,6 +1693,49 @@ mod tests {
         });
         let event = parse_slash_command(payload).expect("should parse");
         assert_eq!(event.trigger_id.as_deref(), Some("12345.98765.abcd"));
+    }
+
+    #[test]
+    fn parse_message_action_compact_shortcut() {
+        let payload = serde_json::json!({
+            "type": "message_action",
+            "callback_id": "compact_session",
+            "trigger_id": "77.88.compact",
+            "response_url": "https://hooks.slack.com/app/T1/2/c",
+            "user": {"id": "U123"},
+            "channel": {"id": "D456"},
+            "message": {"ts": "2222.3333", "thread_ts": "2000.0000", "text": "anything"}
+        });
+        let event = parse_interactive(payload).expect("should parse");
+        assert_eq!(event.shortcut.as_deref(), Some("compact_session"));
+        assert_eq!(event.user, "U123");
+        assert_eq!(event.channel, "D456");
+        assert_eq!(event.thread_ts, "2000.0000");
+        assert_eq!(event.message_ts.as_deref(), Some("2222.3333"));
+        assert_eq!(event.trigger_id.as_deref(), Some("77.88.compact"));
+        assert_eq!(
+            event.response_url.as_deref(),
+            Some("https://hooks.slack.com/app/T1/2/c")
+        );
+        assert!(!event.is_button_click);
+    }
+
+    #[test]
+    fn parse_message_action_without_thread_uses_message_ts() {
+        // A shortcut on a top-level message (the thread parent): no
+        // `thread_ts` field — the message is its own thread.
+        let payload = serde_json::json!({
+            "type": "message_action",
+            "callback_id": "compact_session",
+            "trigger_id": "t",
+            "response_url": "https://hooks.slack.com/app/T1/1/x",
+            "user": {"id": "U123"},
+            "channel": {"id": "D456"},
+            "message": {"ts": "1111.2222", "text": "hello"}
+        });
+        let event = parse_interactive(payload).expect("should parse");
+        assert_eq!(event.thread_ts, "1111.2222");
+        assert_eq!(event.message_ts.as_deref(), Some("1111.2222"));
     }
 
     #[test]

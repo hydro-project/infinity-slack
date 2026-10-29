@@ -21,8 +21,8 @@ public URL is needed, and to a locally running Infinity daemon over its Unix soc
    cargo run -p infinity-slack-bot
    ```
 
-The full guide (manifest, configuration fields, usage, model switching, troubleshooting) is in
-**[docs/slack-bot.md](docs/slack-bot.md)**.
+The full guide (manifest, configuration fields, usage, restarts, model switching, context compaction,
+troubleshooting) is in **[docs/slack-bot.md](docs/slack-bot.md)**.
 
 ## Repository layout
 
