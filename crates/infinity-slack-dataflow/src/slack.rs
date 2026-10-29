@@ -145,6 +145,13 @@ pub enum SlackAction {
         /// Route into the dedicated thread of this subagent (see enum docs).
         #[serde(default)]
         subagent: Option<String>,
+        /// True when this stop ends the response itself (the dataflow saw the
+        /// response-final `ResponseDone`), as opposed to an interposed
+        /// finalize (choice buttons, errors, button clicks). The I/O
+        /// layer clears the stream's delivery cursor on a response-final
+        /// stop: the stream no longer needs resuming across a restart.
+        #[serde(default)]
+        end_of_response: bool,
     },
     /// Set a status indicator on the thread (e.g. "Thinking...").
     SetStatus {
